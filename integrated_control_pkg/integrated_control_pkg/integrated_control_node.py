@@ -6,6 +6,7 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 from std_msgs.msg import String, Bool, Int32
 from std_msgs.msg import Int32MultiArray
 import random
@@ -17,31 +18,49 @@ class IntegratedControlNode(Node):
     def __init__(self):
         super().__init__('integrated_control_node')
         
+        # ========== QoS 프로필 설정 ==========
+        # 센서 데이터용 QoS (BEST_EFFORT): 빠른 전송, 패킷 손실 허용
+        self.sensor_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=3,
+            durability=QoSDurabilityPolicy.VOLATILE
+        )
+        
+        # 제어 명령용 QoS (RELIABLE): 안정적 전송
+        self.control_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=10,
+            durability=QoSDurabilityPolicy.VOLATILE
+        )
+        
         # ========== 구독자 설정 ==========
-        # 사이렌 감지 (siren_pkg)
+        # 사이렌 감지 (siren_pkg) - BEST_EFFORT
         self.siren_detected_sub = self.create_subscription(
-            String, 'siren_detected', self.siren_detected_callback, 10)
+            String, 'siren_detected', self.siren_detected_callback, self.sensor_qos)
         self.sound_direction_sub = self.create_subscription(
-            String, 'sound_direction', self.sound_direction_callback, 10)
+            String, 'sound_direction', self.sound_direction_callback, self.sensor_qos)
         
-        # 교차로 감지 (전방 카메라)
+        # 교차로 감지 (전방 카메라) - BEST_EFFORT (QoS 호환성 개선)
         self.intersection_sub = self.create_subscription(
-            Bool, 'intersection', self.intersection_callback, 10)
+            Bool, 'intersection', self.intersection_callback, self.sensor_qos)
         
-        # 소방차 감지 (후방 카메라)
+        # 소방차 감지 (후방 카메라) - BEST_EFFORT
         self.firetruck_side_sub = self.create_subscription(
-            String, 'firetruck_side', self.firetruck_side_callback, 10)
+            String, 'firetruck_side', self.firetruck_side_callback, self.sensor_qos)
         
-        # 차선 감지 (전방 카메라)
+        # 차선 감지 (전방 카메라) - RELIABLE (lane_detector_node가 RELIABLE 사용)
         self.lane_info_sub = self.create_subscription(
-            Int32MultiArray, 'lane/info', self.lane_info_callback, 10)
+            Int32MultiArray, 'lane/info', self.lane_info_callback, self.control_qos)
         
-        # 속도 정보
+        # 속도 정보 - RELIABLE
         self.velocity_sub = self.create_subscription(
-            Int32, 'velocity', self.velocity_callback, 10)
+            Int32, 'velocity', self.velocity_callback, self.control_qos)
         
         # ========== 발행자 설정 ==========
-        self.decision_pub = self.create_publisher(String, 'decision', 10)
+        # 제어 명령은 반드시 전달되어야 하므로 RELIABLE 사용
+        self.decision_pub = self.create_publisher(String, 'decision', self.control_qos)
         
         # ========== 상태 변수 ==========
         self.siren_detected = "NOSIREN"  # NOSIREN / SIREN
@@ -86,15 +105,18 @@ class IntegratedControlNode(Node):
             self.get_logger().error(f"시리얼 포트 초기화 오류: {e}")
         
         self.get_logger().info("=== Integrated Control Node 시작 ===")
+        self.get_logger().info("QoS 설정:")
+        self.get_logger().info("  - 센서 데이터: BEST_EFFORT (depth=3, volatile)")
+        self.get_logger().info("  - 제어 명령: RELIABLE (depth=10, volatile)")
         self.get_logger().info("구독 토픽:")
-        self.get_logger().info("  - siren_detected (String)")
-        self.get_logger().info("  - sound_direction (String)")
-        self.get_logger().info("  - intersection (Bool)")
-        self.get_logger().info("  - firetruck_side (String)")
-        self.get_logger().info("  - lane/info (Int32MultiArray)")
-        self.get_logger().info("  - velocity (Int32)")
+        self.get_logger().info("  - siren_detected (String) [BEST_EFFORT]")
+        self.get_logger().info("  - sound_direction (String) [BEST_EFFORT]")
+        self.get_logger().info("  - intersection (Bool) [BEST_EFFORT]")
+        self.get_logger().info("  - firetruck_side (String) [BEST_EFFORT]")
+        self.get_logger().info("  - lane/info (Int32MultiArray) [RELIABLE]")
+        self.get_logger().info("  - velocity (Int32) [RELIABLE]")
         self.get_logger().info("발행 토픽:")
-        self.get_logger().info("  - decision (String): Left/Right/Stop/None/Caution")
+        self.get_logger().info("  - decision (String): Left/Right/Stop/None/Caution [RELIABLE]")
         self.get_logger().info(f"속도 기준: {self.SPEED_THRESHOLD} km/h (주행 중/서행 중)")
     
     # ========== 콜백 함수들 ==========
