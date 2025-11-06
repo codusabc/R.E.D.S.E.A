@@ -84,6 +84,8 @@ void loop() {
   if (sequenceActive) {
     executeSequence();
   }
+
+  Serial.println(analogRead(A0));
 }
 
 void readSerialCommand() {

@@ -48,13 +48,6 @@ def generate_launch_description():
             executable='yolo_firetruck_node',
             name='yolo_firetruck_rear',
             output='screen',
-            parameters=[{
-                'device': 'cpu',
-                'threshold': 0.7,
-                'enable': True,
-                'image_topic': 'back_camera',
-                'side_deadband_frac': 0.10
-            }]
         ),
 
         # YOLO 전방 신호등 감지 노드
@@ -63,13 +56,6 @@ def generate_launch_description():
             executable='yolo_trafficlight_node',
             name='yolo_trafficlight_front',
             output='screen',
-            parameters=[{
-                'device': 'cpu',
-                'threshold': 0.7,
-                'enable': True,
-                'image_topic': 'front_camera',
-                'side_deadband_frac': 0.10
-            }]
         ),
 
         # 사이렌 감지기 노드
@@ -94,13 +80,6 @@ def generate_launch_description():
             executable='lane_detector_node',
             name='lane_detector_node',
             output='screen',
-            parameters=[{
-                'input_topic': 'front_camera',
-                'overlay_topic': '/lane/overlay',
-                'lane_id_topic': '/lane/info',
-                'lane_angle_topic': '/lane/angle',
-                'show_debug': False
-            }]
         ),
 
         # 통합 제어 노드 (메인 제어 로직)
@@ -109,11 +88,6 @@ def generate_launch_description():
             executable='integrated_control_node',
             name='integrated_control_node',
             output='screen',
-            parameters=[{
-                'firetruck_timeout_sec': LaunchConfiguration('firetruck_timeout_sec'),
-                'control_frequency_hz': LaunchConfiguration('control_frequency_hz'),
-                'min_speed_for_action_kmh': LaunchConfiguration('min_speed_for_action_kmh'),
-            }]
         ),
 
         # 디버그 시각화 노드 (소방차 감지 오버레이)
